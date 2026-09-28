@@ -25,6 +25,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS vw_novedades;
 DROP VIEW IF EXISTS vw_stock_bajo;
 
+DROP TABLE IF EXISTS pagos;
 DROP TABLE IF EXISTS historial_estados_pedido;
 DROP TABLE IF EXISTS pedido_detalles;
 DROP TABLE IF EXISTS pedidos;
@@ -435,6 +436,29 @@ CREATE TABLE historial_estados_pedido (
     REFERENCES usuarios (id_usuario) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Historial de cambios de estado de cada pedido (seguimiento del cliente)';
+
+-- Pago de cada pedido: contra entrega o PayPal (una fila por pedido).
+CREATE TABLE pagos (
+  id_pago             INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  id_pedido           INT UNSIGNED  NOT NULL,
+  metodo              ENUM('contra_entrega','paypal') NOT NULL,
+  estado              ENUM('pendiente','completado','reembolsado','cancelado') NOT NULL DEFAULT 'pendiente',
+  monto               DECIMAL(10,2) NOT NULL,
+  paypal_orden_id     VARCHAR(40)   NULL COMMENT 'Id de la orden de PayPal (Orders API v2)',
+  paypal_captura_id   VARCHAR(40)   NULL COMMENT 'Id de la captura; se usa para reembolsar',
+  paypal_correo       VARCHAR(120)  NULL COMMENT 'Correo de la cuenta PayPal que pagó',
+  fecha_creacion      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_actualizacion DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id_pago),
+  UNIQUE KEY uq_pagos_pedido (id_pedido),
+  UNIQUE KEY uq_pagos_paypal_orden (paypal_orden_id),
+  KEY idx_pagos_metodo_estado (metodo, estado),
+  CONSTRAINT fk_pagos_pedido FOREIGN KEY (id_pedido)
+    REFERENCES pedidos (id_pedido) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT chk_pagos_monto CHECK (monto >= 0),
+  CONSTRAINT chk_pagos_paypal CHECK (metodo <> 'paypal' OR paypal_orden_id IS NOT NULL)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Método y estado del pago de cada pedido';
 
 -- Llave foránea pendiente: movimientos de inventario -> pedidos.
 ALTER TABLE movimientos_inventario

@@ -40,6 +40,7 @@ $accion = url('/admin/pedidos/' . (int) $pedido['id_pedido']);
                 <div class="d-flex justify-content-between align-items-baseline border-top pt-2">
                     <span class="fw-semibold">Total</span><span class="font-serif fw-bold fs-5"><?= moneda($pedido['total']) ?></span>
                 </div>
+                <?php $detallePaypal = true; require RUTA_VISTAS . '/partials/pago_resumen.php'; ?>
             </div>
         </section>
 
@@ -107,6 +108,9 @@ $accion = url('/admin/pedidos/' . (int) $pedido['id_pedido']);
                             <option value="">Seleccionar motivo…</option>
                             <?php foreach ($motivos as $m): ?><option value="<?= e($m) ?>"><?= e($m) ?></option><?php endforeach; ?>
                         </select>
+                        <?php if ($pedido['pago_metodo'] === 'paypal' && $pedido['pago_estado'] === 'completado'): ?>
+                            <p class="small text-warning-emphasis mt-2 mb-0"><i class="bi bi-arrow-counterclockwise me-1"></i>Este pedido se pagó con PayPal: al cancelarlo se reembolsan <?= moneda($pedido['total']) ?> al cliente.</p>
+                        <?php endif; ?>
                     </div>
                     <div class="mb-3">
                         <label for="comentario" class="form-label">Nota interna</label>

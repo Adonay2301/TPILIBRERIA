@@ -362,6 +362,14 @@ SET h.fecha_cambio = p.fecha_pedido + INTERVAL ((h.id_historial - x.primero) * 1
 
 DROP TEMPORARY TABLE tmp_primer_historial;
 
+-- Pagos: los pedidos de prueba se pagaron contra entrega.
+-- Entregado = cobrado; cancelado = no se cobró; el resto sigue pendiente.
+INSERT INTO pagos (id_pedido, metodo, estado, monto, fecha_creacion)
+SELECT id_pedido, 'contra_entrega',
+       CASE estado WHEN 'entregado' THEN 'completado' WHEN 'cancelado' THEN 'cancelado' ELSE 'pendiente' END,
+       total, fecha_pedido
+  FROM pedidos;
+
 
 -- =====================================================================
 --  BAJA LÓGICA DE UN EMPLEADO

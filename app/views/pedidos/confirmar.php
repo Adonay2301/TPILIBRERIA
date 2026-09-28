@@ -2,7 +2,8 @@
 /**
  * Confirmación de compra: dirección de entrega, teléfono y resumen.
  * Los montos definitivos los calculan los triggers al crear el pedido.
- * Variables: $items, $resumen, $direcciones, $departamentos, $cliente
+ * Contra entrega envía el formulario; PayPal lo envía por fetch desde js/paypal.js.
+ * Variables: $items, $resumen, $direcciones, $departamentos, $cliente, $paypal, $paypalSimulado
  */
 $seleccionada = old('id_direccion', $direcciones ? (string) $direcciones[0]['id_direccion'] : 'nueva');
 ?>
@@ -10,7 +11,7 @@ $seleccionada = old('id_direccion', $direcciones ? (string) $direcciones[0]['id_
     <a href="<?= url('/carrito') ?>" class="small text-decoration-none">← Volver al carrito</a>
     <h1 class="titulo-pagina mt-2 mb-4">Confirmar pedido</h1>
 
-    <form action="<?= url('/pedido/crear') ?>" method="post" novalidate>
+    <form action="<?= url('/pedido/crear') ?>" method="post" id="formCompra" novalidate>
         <?= csrf_campo() ?>
         <div class="row g-4">
             <div class="col-lg-7">
@@ -75,6 +76,26 @@ $seleccionada = old('id_direccion', $direcciones ? (string) $direcciones[0]['id_
                         </div>
                     </div>
                 </section>
+
+                <section class="tarjeta p-4 mt-4">
+                    <h2 class="tarjeta-titulo mb-3">Método de pago</h2>
+                    <label class="opcion-direccion">
+                        <input class="form-check-input" type="radio" name="metodo_pago" value="contra_entrega" checked data-metodo-pago>
+                        <span>
+                            <strong class="small"><i class="bi bi-cash-coin me-1"></i>Contra entrega</strong><br>
+                            <span class="small texto-suave">Pagas en efectivo al recibir tus libros.</span>
+                        </span>
+                    </label>
+                    <label class="opcion-direccion <?= $paypal ? '' : 'opacity-50' ?>">
+                        <input class="form-check-input" type="radio" name="metodo_pago" value="paypal" data-metodo-pago <?= $paypal ? '' : 'disabled' ?>>
+                        <span>
+                            <strong class="small"><i class="bi bi-paypal me-1"></i>PayPal</strong><br>
+                            <span class="small texto-suave">
+                                <?= $paypal ? 'Paga ahora con tu cuenta PayPal o con tarjeta.' : 'No disponible por el momento.' ?>
+                            </span>
+                        </span>
+                    </label>
+                </section>
             </div>
 
             <div class="col-lg-5">
@@ -98,10 +119,69 @@ $seleccionada = old('id_direccion', $direcciones ? (string) $direcciones[0]['id_
                             <span class="fw-semibold">Total</span><span class="font-serif fw-bold fs-4"><?= moneda($resumen['total']) ?></span>
                         </div>
                     </div>
-                    <p class="small texto-suave mt-3">El pago se realiza contra entrega. Te avisaremos cada cambio de estado.</p>
-                    <button type="submit" class="btn btn-pya w-100 py-3">Confirmar pedido</button>
+                    <div data-pago="contra_entrega">
+                        <p class="small texto-suave mt-3">Pagas al recibir el pedido. Te avisaremos cada cambio de estado.</p>
+                        <button type="submit" class="btn btn-pya w-100 py-3">Confirmar pedido</button>
+                    </div>
+                    <?php if ($paypal): ?>
+                        <div data-pago="paypal" class="d-none">
+                            <p class="small texto-suave mt-3">Se cobrará <?= moneda($resumen['total']) ?> en tu cuenta PayPal. Tu pedido se registra en cuanto se confirme el pago.</p>
+                            <div id="paypalBotones" data-modo="<?= $paypalSimulado ? 'simulado' : 'real' ?>">
+                                <?php if ($paypalSimulado): ?>
+                                    <button type="button" class="btn-paypal-sim" id="btnPaypalSim" aria-label="Pagar con PayPal">
+                                        <span class="logo-paypal"><b>Pay</b><b>Pal</b></span>
+                                    </button>
+                                    <p class="text-center texto-suave mt-2 mb-0" style="font-size:.72rem"><i class="bi bi-cone-striped me-1"></i>PayPal en modo de prueba: no se cobra dinero real.</p>
+                                <?php endif; ?>
+                            </div>
+                            <p id="paypalProcesando" class="small texto-suave text-center d-none mb-0 mt-2">
+                                <span class="spinner-border spinner-border-sm me-1"></span> Confirmando el pago…
+                            </p>
+                        </div>
+                    <?php endif; ?>
                 </aside>
             </div>
         </div>
     </form>
 </div>
+
+<?php if ($paypal && $paypalSimulado): ?>
+    <!-- Ventana que imita el checkout de PayPal (modo simulado) -->
+    <div class="modal fade" id="modalPaypalSim" tabindex="-1" aria-labelledby="tituloPaypalSim" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+            <div class="modal-content ventana-paypal-sim">
+                <div class="modal-header border-0 pb-0">
+                    <span class="logo-paypal fs-4"><b>Pay</b><b>Pal</b></span>
+                    <span class="ms-auto me-2 small texto-suave"><i class="bi bi-cart3 me-1"></i><span data-sim-monto><?= moneda($resumen['total']) ?></span> USD</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancelar"></button>
+                </div>
+                <form class="modal-body pt-3" id="formPaypalSim" novalidate>
+                    <h2 class="fs-5 fw-semibold mb-1" id="tituloPaypalSim">Paga con PayPal</h2>
+                    <p class="small texto-suave mb-3">Compra en <?= e(APP_NOMBRE) ?> · Orden <span class="font-monospace" data-sim-orden></span></p>
+
+                    <div class="mb-2">
+                        <label for="simCorreo" class="form-label small">Correo electrónico</label>
+                        <input type="email" class="form-control" id="simCorreo" name="correo" value="comprador@personal.example.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="simContrasena" class="form-label small">Contraseña</label>
+                        <input type="password" class="form-control" id="simContrasena" name="contrasena" value="prueba123" required>
+                    </div>
+
+                    <div class="border rounded-3 p-2 mb-3 small d-flex align-items-center gap-2">
+                        <i class="bi bi-credit-card-2-front fs-5 text-primary"></i>
+                        <span>Visa terminada en 4242<br><span class="texto-suave">Medio de pago predeterminado</span></span>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="simRechazar" name="rechazar" value="1">
+                        <label class="form-check-label small texto-suave" for="simRechazar">Simular que el banco rechaza la tarjeta</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-paypal-pagar w-100 py-2 fw-semibold">Pagar ahora</button>
+                    <button type="button" class="btn btn-link w-100 small mt-1" data-bs-dismiss="modal">Cancelar y volver a <?= e(APP_NOMBRE) ?></button>
+                </form>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>

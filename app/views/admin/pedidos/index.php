@@ -54,7 +54,10 @@ $datos = [
                     </td>
                     <td class="texto-suave"><?= fecha($p['fecha_pedido']) ?></td>
                     <td class="text-center"><?= (int) $p['articulos'] ?></td>
-                    <td class="text-end fw-semibold"><?= moneda($p['total']) ?></td>
+                    <td class="text-end">
+                        <span class="fw-semibold"><?= moneda($p['total']) ?></span><br>
+                        <span class="small texto-suave text-nowrap"><?= e(metodoPago($p['pago_metodo'])) ?> · <?= e(estadoPago($p['pago_estado'])['texto']) ?></span>
+                    </td>
                     <td class="text-center"><?php $estado = $p['estado']; require RUTA_VISTAS . '/partials/insignia_estado.php'; ?></td>
                     <td class="small"><?= $p['empleado'] ? e($p['empleado']) : '<span class="texto-suave">—</span>' ?></td>
                     <td class="text-center text-nowrap">

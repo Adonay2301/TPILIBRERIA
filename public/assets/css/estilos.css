@@ -524,6 +524,8 @@ h1, h2, h3, .font-serif { font-family: var(--font-serif); }
 }
 @media (min-width: 992px) {
     .sidebar-pya {
+        /* .offcanvas-lg de Bootstrap fuerza "transparent !important" en escritorio */
+        background-color: var(--color-teal) !important;
         width: var(--ancho-sidebar);
         flex-shrink: 0;
         border-right: 1px solid rgba(255, 255, 255, .08);
@@ -819,6 +821,23 @@ h1, h2, h3, .font-serif { font-family: var(--font-serif); }
 .nav-tabs .nav-link.active { color: var(--color-teal); background: transparent; border-bottom-color: var(--color-orange); }
 .tabla-pya tfoot td { background: rgba(26, 58, 74, .04); border-top: 1px solid var(--color-cream-dark); padding: .75rem 1rem; }
 .grafico-ventas { max-height: 240px; }
+
+/* ---------------------------------------------------------------------
+   22. PayPal simulado (colores de la marca PayPal)
+   --------------------------------------------------------------------- */
+.logo-paypal { font-style: italic; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.logo-paypal b:first-child { color: #003087; }
+.logo-paypal b:last-child  { color: #009cde; }
+.btn-paypal-sim {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 48px; border: 0; border-radius: 6px;
+    background: #ffc439; font-size: 1.35rem; transition: filter .15s;
+}
+.btn-paypal-sim:hover { filter: brightness(.95); }
+.btn-paypal-sim:disabled { opacity: .6; }
+.ventana-paypal-sim { border-radius: 14px; }
+.btn-paypal-pagar { background: #0070ba; color: #fff; border-radius: 999px; }
+.btn-paypal-pagar:hover, .btn-paypal-pagar:focus { background: #005ea6; color: #fff; }
 
 @media print {
     .navbar-pya, .sidebar-pya, .footer-pya, .btn, form, .alertas-flotantes { display: none !important; }

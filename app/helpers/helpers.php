@@ -17,7 +17,10 @@ function url(string $ruta = '/'): string
 /** Archivo de public/assets: asset('css/estilos.css') */
 function asset(string $ruta): string
 {
-    return BASE_URL . '/assets/' . ltrim($ruta, '/');
+    $ruta = ltrim($ruta, '/');
+    // ?v=fecha de modificación: el navegador descarga el archivo de nuevo cuando cambia
+    $archivo = RUTA_RAIZ . '/public/assets/' . $ruta;
+    return BASE_URL . '/assets/' . $ruta . (is_file($archivo) ? '?v=' . filemtime($archivo) : '');
 }
 
 /**
@@ -144,6 +147,23 @@ function estadoPedido(string $estado): array
         'entregado'      => ['texto' => 'Entregado',   'clase' => 'estado-entregado'],
         'cancelado'      => ['texto' => 'Cancelado',   'clase' => 'estado-cancelado'],
     ][$estado] ?? ['texto' => ucfirst($estado), 'clase' => 'estado-cancelado'];
+}
+
+/** Texto del método de pago. */
+function metodoPago(?string $metodo): string
+{
+    return ['contra_entrega' => 'Contra entrega', 'paypal' => 'PayPal'][$metodo] ?? 'Sin registro';
+}
+
+/** Texto y clase (reutiliza los colores de los estados del pedido) del estado del pago. */
+function estadoPago(?string $estado): array
+{
+    return [
+        'pendiente'   => ['texto' => 'Por cobrar',  'clase' => 'estado-pendiente'],
+        'completado'  => ['texto' => 'Pagado',      'clase' => 'estado-entregado'],
+        'reembolsado' => ['texto' => 'Reembolsado', 'clase' => 'estado-enviado'],
+        'cancelado'   => ['texto' => 'Anulado',     'clase' => 'estado-cancelado'],
+    ][$estado] ?? ['texto' => '—', 'clase' => 'estado-cancelado'];
 }
 
 /** Disponibilidad según el stock mínimo propio de cada libro. */

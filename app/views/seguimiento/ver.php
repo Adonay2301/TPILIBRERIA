@@ -58,6 +58,7 @@
             <div class="d-flex justify-content-between align-items-baseline border-top pt-2">
                 <span class="fw-semibold">Total del pedido</span><span class="font-serif fw-bold fs-5"><?= moneda($pedido['total']) ?></span>
             </div>
+            <?php require RUTA_VISTAS . '/partials/pago_resumen.php'; ?>
         </div>
     </section>
 

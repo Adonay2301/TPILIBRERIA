@@ -23,13 +23,14 @@ class PedidoModel extends Model
                                            CONCAT(c.nombres, ' ', c.apellidos) AS cliente, u.correo,
                                            CONCAT(e.nombres, ' ', e.apellidos) AS empleado,
                                            (SELECT SUM(cantidad) FROM pedido_detalles WHERE id_pedido = p.id_pedido) AS articulos,
-                                           m.nombre AS municipio
+                                           m.nombre AS municipio, g.metodo AS pago_metodo, g.estado AS pago_estado
                                       FROM pedidos p
                                       JOIN clientes c       ON c.id_cliente = p.id_cliente
                                       JOIN usuarios u       ON u.id_usuario = c.id_usuario
                                       JOIN distritos d      ON d.id_distrito = p.id_distrito
                                       JOIN municipios m     ON m.id_municipio = d.id_municipio
-                                      LEFT JOIN empleados e ON e.id_empleado = p.id_empleado";
+                                      LEFT JOIN empleados e ON e.id_empleado = p.id_empleado
+                                      LEFT JOIN pagos g     ON g.id_pedido = p.id_pedido";
 
     // -----------------------------------------------------------------
     // Crear pedido (cliente)
@@ -37,11 +38,16 @@ class PedidoModel extends Model
 
     /**
      * Convierte el carrito en un pedido. Todo ocurre en una transacción:
-     * valida stock, inserta el pedido y sus detalles (los triggers calculan montos) y vacía el carrito.
+     * valida stock, inserta el pedido y sus detalles (los triggers calculan montos),
+     * registra el pago y vacía el carrito.
+     *
+     * $cobrar(int $idPedido, float $total): array — se llama con el total ya calculado por
+     * los triggers y devuelve los datos del pago (metodo, estado, paypal_*). Si lanza una
+     * excepción, el pedido se deshace. Sin $cobrar el pago queda "contra entrega, pendiente".
      */
-    public function crearDesdeCarrito(int $idCliente, array $entrega): int
+    public function crearDesdeCarrito(int $idCliente, array $entrega, ?callable $cobrar = null): int
     {
-        return $this->transaccion(function () use ($idCliente, $entrega) {
+        return $this->transaccion(function () use ($idCliente, $entrega, $cobrar) {
             $items = $this->todos(
                 'SELECT cd.id_carrito, cd.id_libro, cd.cantidad, l.titulo, l.precio, l.stock_actual, l.activo
                    FROM carritos c
@@ -77,10 +83,34 @@ class PedidoModel extends Model
                 );
             }
 
+            $total = (float) $this->valor('SELECT total FROM pedidos WHERE id_pedido = ?', [$idPedido]);
+            $pago = $cobrar ? $cobrar($idPedido, $total) : ['metodo' => 'contra_entrega', 'estado' => 'pendiente'];
+
+            $this->ejecutar(
+                'INSERT INTO pagos (id_pedido, metodo, estado, monto, paypal_orden_id, paypal_captura_id, paypal_correo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [$idPedido, $pago['metodo'], $pago['estado'], $total, $pago['paypal_orden_id'] ?? null,
+                 $pago['paypal_captura_id'] ?? null, $pago['paypal_correo'] ?? null]
+            );
+
             $this->ejecutar('DELETE FROM carrito_detalles WHERE id_carrito = ?', [$items[0]['id_carrito']]);
 
             return $idPedido;
         });
+    }
+
+    // -----------------------------------------------------------------
+    // Pagos
+    // -----------------------------------------------------------------
+
+    public function pago(int $idPedido): ?array
+    {
+        return $this->uno('SELECT * FROM pagos WHERE id_pedido = ?', [$idPedido]);
+    }
+
+    public function cambiarEstadoPago(int $idPedido, string $estado): void
+    {
+        $this->ejecutar('UPDATE pagos SET estado = ? WHERE id_pedido = ?', [$estado, $idPedido]);
     }
 
     // -----------------------------------------------------------------
@@ -92,7 +122,8 @@ class PedidoModel extends Model
     {
         $sql = "SELECT p.*, CONCAT(c.nombres, ' ', c.apellidos) AS cliente, c.telefono AS telefono_cliente, u.correo,
                        d.nombre AS distrito, m.nombre AS municipio, dp.nombre AS departamento,
-                       CONCAT(e.nombres, ' ', e.apellidos) AS empleado
+                       CONCAT(e.nombres, ' ', e.apellidos) AS empleado,
+                       g.metodo AS pago_metodo, g.estado AS pago_estado, g.paypal_orden_id, g.paypal_captura_id, g.paypal_correo
                   FROM pedidos p
                   JOIN clientes c       ON c.id_cliente = p.id_cliente
                   JOIN usuarios u       ON u.id_usuario = c.id_usuario
@@ -100,6 +131,7 @@ class PedidoModel extends Model
                   JOIN municipios m     ON m.id_municipio = d.id_municipio
                   JOIN departamentos dp ON dp.id_departamento = m.id_departamento
                   LEFT JOIN empleados e ON e.id_empleado = p.id_empleado
+                  LEFT JOIN pagos g     ON g.id_pedido = p.id_pedido
                  WHERE p.id_pedido = ?";
         $params = [$idPedido];
         if ($idCliente !== null) {
@@ -283,6 +315,9 @@ class PedidoModel extends Model
      * Cambia el estado del pedido (y opcionalmente asigna empleado) en una transacción.
      * - pendiente -> en_preparacion: registra la salida de inventario (venta).
      * - en_preparacion -> cancelado: devuelve el stock (devolución).
+     * - entregado: el pago contra entrega queda cobrado.
+     * - cancelado: el pago contra entrega se anula; el de PayPal se reembolsa. Si PayPal
+     *   rechaza el reembolso, la cancelación completa se deshace.
      * El trigger escribe el historial con @comentario_estado.
      */
     public function cambiarEstado(int $idPedido, string $nuevo, ?string $comentario, int $idUsuario, ?int $idEmpleado = null): void
@@ -313,7 +348,33 @@ class PedidoModel extends Model
             } finally {
                 $this->ejecutar('SET @comentario_estado = NULL');
             }
+
+            $this->sincronizarPago($idPedido, $nuevo, $comentario);
         });
+    }
+
+    /** Ajusta el pago al nuevo estado del pedido (se llama dentro de la transacción). */
+    private function sincronizarPago(int $idPedido, string $nuevo, ?string $comentario): void
+    {
+        $pago = $this->uno('SELECT * FROM pagos WHERE id_pedido = ? FOR UPDATE', [$idPedido]);
+        if (!$pago) {
+            return;
+        }
+
+        if ($pago['metodo'] === 'contra_entrega' && in_array($nuevo, ['entregado', 'cancelado'], true)) {
+            $this->cambiarEstadoPago($idPedido, $nuevo === 'entregado' ? 'completado' : 'cancelado');
+            return;
+        }
+
+        if ($pago['metodo'] === 'paypal' && $nuevo === 'cancelado' && $pago['estado'] === 'completado') {
+            try {
+                PayPal::reembolsar($pago['paypal_captura_id'], 'Pedido ' . codigoPedido($idPedido) . ' cancelado' . ($comentario ? ": $comentario" : ''));
+            } catch (RuntimeException $e) {
+                error_log($e->getMessage());
+                throw new DomainException('No se pudo reembolsar el pago en PayPal; el pedido no se canceló. Inténtalo más tarde.');
+            }
+            $this->cambiarEstadoPago($idPedido, 'reembolsado');
+        }
     }
 
     /** Salidas (venta) o entradas (devolución) de todos los libros del pedido. */

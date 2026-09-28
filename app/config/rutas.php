@@ -31,6 +31,9 @@ return [
     ['POST', '/carrito/eliminar',       'CarritoController@eliminar'],
     ['GET',  '/pedido/confirmar',       'PedidoController@confirmar'],
     ['POST', '/pedido/crear',           'PedidoController@crear'],
+    ['POST', '/pago/paypal/orden',      'PedidoController@paypalOrden'],
+    ['POST', '/pago/paypal/capturar',   'PedidoController@paypalCapturar'],
+    ['POST', '/pago/paypal/simulador/aprobar', 'PedidoController@paypalSimuladorAprobar'],
     ['GET',  '/mis-pedidos',            'SeguimientoController@index'],
     ['GET',  '/seguimiento/{id}',       'SeguimientoController@ver'],
 

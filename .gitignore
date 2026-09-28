@@ -1,6 +1,9 @@
 # Credenciales de la base de datos (usar app/config/database.example.php como plantilla)
 app/config/database.php
 
+# Credenciales de PayPal (usar app/config/paypal.example.php como plantilla)
+app/config/paypal.php
+
 # Variables de entorno
 .env
 
