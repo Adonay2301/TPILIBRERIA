@@ -1,11 +1,10 @@
 <?php
 /**
- * PLANTILLA de configuración de la base de datos - Punto y Aparte
+ * PLANTILLA de credenciales de la base de datos.
  *
- * Cómo usarla:
- *   1. Copie este archivo como config/database.php
- *   2. Llene los valores de su entorno.
- *   3. No suba database.php a Git (ya está en .gitignore).
+ * 1. Copie este archivo como app/config/database.php
+ * 2. Llene los valores de su entorno.
+ * 3. No suba database.php a Git (ya está en .gitignore).
  *
  * Valores típicos en XAMPP: host 127.0.0.1, puerto 3306, usuario root, contraseña vacía.
  */

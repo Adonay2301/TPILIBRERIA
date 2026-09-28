@@ -1,5 +1,5 @@
-# Credenciales de la base de datos (usar config/database.example.php como plantilla)
-config/database.php
+# Credenciales de la base de datos (usar app/config/database.example.php como plantilla)
+app/config/database.php
 
 # Variables de entorno
 .env

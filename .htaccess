@@ -1,0 +1,7 @@
+# Redirige todas las peticiones a la carpeta public/
+# (así app/, database/ y los archivos de configuración nunca son accesibles desde el navegador)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^$ public/ [L]
+    RewriteRule (.*) public/$1 [L]
+</IfModule>

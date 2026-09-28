@@ -1,0 +1,2 @@
+# Segunda barrera: nadie puede pedir archivos de app/ directamente
+Require all denied
